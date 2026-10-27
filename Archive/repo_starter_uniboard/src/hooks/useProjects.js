@@ -1,111 +1,70 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
+/**
+ * Filtra i progetti in base alla stringa di ricerca (searchQuery).
+ * Cerca in modo case-insensitive su: titolo, descrizione e stack tecnologico.
+ */
+export function filterProjects(projects = [], { searchQuery = '' } = {}) {
+  if (!searchQuery || !searchQuery.trim()) {
+    return projects;
+  }
 
-export const PAGE_SIZE = 6;
+  const query = searchQuery.trim().toLowerCase();
 
-// Carica i progetti (con le candidature) a pagine di PAGE_SIZE elementi.
-export function useProjects({ category, difficulty }) {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState(null);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+  return projects.filter((project) => {
+    // 1. Ricerca nel titolo
+    const titleMatch = project.title
+      ? project.title.toLowerCase().includes(query)
+      : false;
 
-  // Ogni volta che cambiano i filtri, ricarichiamo da pagina 0
-  useEffect(() => {
-    let ignore = false; // Risolve UB-04: evita race condition su rete lenta
+    // 2. Ricerca nella descrizione
+    const descMatch = project.description
+      ? project.description.toLowerCase().includes(query)
+      : false;
 
-    async function loadInitialProjects() {
-      setLoading(true);
-      setErrorMsg(null);
-      setPage(0);
+    // 3. Ricerca nello stack tecnologico (array di stringhe)
+    const techMatch = Array.isArray(project.tech_stack)
+      ? project.tech_stack.some((tech) => tech.toLowerCase().includes(query))
+      : false;
 
-      try {
-        // 1. Inizializziamo la query SENZA filtri predefiniti
-        let query = supabase
-          .from('projects')
-          .select('*, project_applications(*)')
-          .order('created_at', { ascending: false })
-          .range(0, PAGE_SIZE - 1); // 0..5 = 6 elementi
-
-        // 2. Applichiamo la categoria SOLO se non è 'Tutte'
-        if (category && category !== 'Tutte') {
-          query = query.eq('category', category);
-        }
-
-        // 3. Applichiamo la difficoltà SOLO se non è 'Tutte'
-        if (difficulty && difficulty !== 'Tutte') {
-          query = query.eq('difficulty', difficulty);
-        }
-
-        const { data, error } = await query;
-
-        if (ignore) return; // Se il filtro è cambiato nel frattempo, scartiamo la risposta vecchia
-
-        if (error) {
-          console.error('Errore Supabase fetchProjects:', error);
-          setErrorMsg(error.message);
-        } else {
-          // SOVRASCRIVIAMO lo stato (non accodiamo) perché siamo a pagina 0
-          setProjects(data || []);
-          setHasMore((data || []).length === PAGE_SIZE);
-        }
-      } catch (err) {
-        if (!ignore) {
-          console.error('Eccezione in fetchProjects:', err);
-          setErrorMsg('Errore imprevisto nel caricamento dei dati.');
-        }
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    }
-
-    loadInitialProjects();
-
-    return () => {
-      ignore = true; // Annulla l'effetto della richiesta precedente se l'utente cambia filtro rapidamente
-    };
-  }, [category, difficulty]);
-
-  // Bottone "Carica altri": richiede la pagina successiva e la accoda alla lista
-  const loadMore = async () => {
-    const nextPage = page + 1;
-    setLoading(true);
-
-    try {
-      const from = nextPage * PAGE_SIZE;
-      const to = (nextPage + 1) * PAGE_SIZE - 1;
-
-      let query = supabase
-        .from('projects')
-        .select('*, project_applications(*)')
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (category && category !== 'Tutte') {
-        query = query.eq('category', category);
-      }
-
-      if (difficulty && difficulty !== 'Tutte') {
-        query = query.eq('difficulty', difficulty);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        setErrorMsg(error.message);
-      } else {
-        // Qui ACCODIAMO i nuovi risultati della pagina successiva
-        setProjects((prev) => [...prev, ...(data || [])]);
-        setPage(nextPage);
-        setHasMore((data || []).length === PAGE_SIZE);
-      }
-    } catch (err) {
-      setErrorMsg('Errore durante il caricamento delle pagine successive.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { projects, setProjects, loading, errorMsg, hasMore, loadMore };
+    return titleMatch || descMatch || techMatch;
+  });
 }
+
+/**
+ * Ordina l'array dei progetti senza mutare l'array originale.
+ */
+export function sortProjects(projects = [], sortBy = 'newest') {
+  if (!Array.isArray(projects)) return [];
+
+  // CREA UNA COPIA SHALLOW ([...projects]) per evitare la mutazione in-place
+  const projectsCopy = [...projects];
+
+  return projectsCopy.sort((a, b) => {
+    if (sortBy === 'spots_asc') {
+      const freeSpotsA = a.spots_total - (a.project_applications?.length || 0);
+      const freeSpotsB = b.spots_total - (b.project_applications?.length || 0);
+      return freeSpotsA - freeSpotsB; // Ordine crescente (da meno posti a più posti)
+    }
+
+    if (sortBy === 'newest') {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      return dateB - dateA; // Dal più recente al più vecchio
+    }
+
+    return 0;
+  });
+}
+
+/**
+ * Verifica se le candidature per un progetto sono ancora aperte.
+ */
+export function isApplicationOpen(project) {
+  if (!project || !project.application_deadline) return true;
+
+  // Imposta la scadenza alla fine del giorno indicato (23:59:59)
+  const deadline = new Date(project.application_deadline);
+  deadline.setHours(23, 59, 59, 999);
+
+  return new Date() <= deadline;
+}
+
