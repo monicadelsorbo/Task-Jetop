@@ -15,8 +15,9 @@ export default function NewProjectForm({ categories, difficulties, onProjectCrea
   const [deadline, setDeadline] = useState(''); // 'YYYY-MM-DD', opzionale
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (!title.trim() || !description.trim() || !author.trim()) return;
 
     setSubmitting(true);
@@ -34,15 +35,11 @@ export default function NewProjectForm({ categories, difficulties, onProjectCrea
       tech_stack: techArray,
       author: author.trim(),
       spots_total: Number(spotsTotal),
-      //se si metteva un dato null dava errore abbiamo aggiornato in modo che accettasse il null
-      application_deadline: deadline === "" ? null : deadline
+      // fix(UB-08): la colonna DATE non accetta la stringa vuota "": senza scadenza mandiamo null
+      application_deadline: deadline === '' ? null : deadline
     };
 
-    // 🐛 UB-08:
-    // 1. Cosa restituisce `data` in Supabase v2 se non si chiama `.select()` dopo `.insert()`?
-    // 2. Quando passiamo il nuovo progetto a `onProjectCreated`, avrà la proprietà `project_applications: []`
-    //    che `ProjectCard.jsx` si aspetta di leggere?
-    //va fori dalla banda quindi con il select aggiorna il database con i dati
+    // fix(UB-08): senza .select() Supabase v2 non restituisce la riga inserita (data = null)
     const { data, error } = await supabase.from('projects').insert([payload]).select();
 
     setSubmitting(false);
@@ -54,26 +51,23 @@ export default function NewProjectForm({ categories, difficulties, onProjectCrea
 
     showToast('Progetto pubblicato!', 'success');
 
-    // FIX: Svuota tutti i campi e chiudi
+    // fix(UB-08): ProjectCard legge project_applications.length → un progetto nuovo
+    // non ha candidature, quindi aggiungiamo un array vuoto (evita la pagina bianca)
+    if (data && data.length > 0) {
+      onProjectCreated({ ...data[0], project_applications: [] });
+    }
+
+    // fix(UB-08): svuota il form e chiudilo
     setTitle('');
     setCategory(categories[0] || 'Web Dev');
-    setDifficulty(difficulties[1]  ||'Intermedio');
+    setDifficulty(difficulties[1] || 'Intermedio');
     setDescription('');
     setTechInput('');
     setAuthor('');
     setSpotsTotal(3);
     setDeadline('');
     setIsOpen(false);
-
-    onProjectCreated(data ? data[0] : null);
   };
-  if (data && data.length > 0) {
-      const nuovoProgetto = {
-        ...data[0],
-        project_applications: [] // FIX: previene errori in ProjectCard
-      };
-      onProjectCreated(nuovoProgetto);
-  }
   if (!isOpen) {
     return (
       <div style={{ marginBottom: '20px' }}>
