@@ -140,7 +140,7 @@ BEGIN
     -- Vincolo di progetto: NON rimuovere.
     PERFORM pg_sleep(0.3);
 
-    IF v_taken > v_spots THEN
+    IF v_taken >= v_spots THEN
         RAISE EXCEPTION 'Il team del progetto % è al completo (% posti)', NEW.project_id, v_spots
             USING ERRCODE = 'P0001';
     END IF;
