@@ -3,15 +3,6 @@ import { supabase } from '../supabaseClient';
 
 export const PAGE_SIZE = 6;
 
-// =========================================================================
-// 🐛 UB-01 / UB-02 / UB-04 (Data Fetching, Join Relazionale e Filtri):
-// Analizzate cosa succede quando cambiano i filtri e come viene costruita
-// la query verso Supabase (inclusa la relazione con `project_applications`).
-// Attenzione: con VITE_SIMULATE_SLOW_NETWORK=true le risposte arrivano in
-// ritardo e in ordine casuale. Cambiate categoria velocemente più volte:
-// i progetti mostrati corrispondono sempre al filtro selezionato?
-// =========================================================================
-
 // Carica i progetti (con le candidature) a pagine di PAGE_SIZE elementi.
 export function useProjects({ category, difficulty }) {
   const [projects, setProjects] = useState([]);
@@ -20,48 +11,100 @@ export function useProjects({ category, difficulty }) {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
+  // Ogni volta che cambiano i filtri, ricarichiamo da pagina 0
   useEffect(() => {
-    fetchProjects(0);
-  }, []);
+    let ignore = false; // Risolve UB-04: evita race condition su rete lenta
 
-  async function fetchProjects(pageToLoad) {
+    async function loadInitialProjects() {
+      setLoading(true);
+      setErrorMsg(null);
+      setPage(0);
+
+      try {
+        // 1. Inizializziamo la query SENZA filtri predefiniti
+        let query = supabase
+          .from('projects')
+          .select('*, project_applications(*)')
+          .order('created_at', { ascending: false })
+          .range(0, PAGE_SIZE - 1); // 0..5 = 6 elementi
+
+        // 2. Applichiamo la categoria SOLO se non è 'Tutte'
+        if (category && category !== 'Tutte') {
+          query = query.eq('category', category);
+        }
+
+        // 3. Applichiamo la difficoltà SOLO se non è 'Tutte'
+        if (difficulty && difficulty !== 'Tutte') {
+          query = query.eq('difficulty', difficulty);
+        }
+
+        const { data, error } = await query;
+
+        if (ignore) return; // Se il filtro è cambiato nel frattempo, scartiamo la risposta vecchia
+
+        if (error) {
+          console.error('Errore Supabase fetchProjects:', error);
+          setErrorMsg(error.message);
+        } else {
+          // SOVRASCRIVIAMO lo stato (non accodiamo) perché siamo a pagina 0
+          setProjects(data || []);
+          setHasMore((data || []).length === PAGE_SIZE);
+        }
+      } catch (err) {
+        if (!ignore) {
+          console.error('Eccezione in fetchProjects:', err);
+          setErrorMsg('Errore imprevisto nel caricamento dei dati.');
+        }
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }
+
+    loadInitialProjects();
+
+    return () => {
+      ignore = true; // Annulla l'effetto della richiesta precedente se l'utente cambia filtro rapidamente
+    };
+  }, [category, difficulty]);
+
+  // Bottone "Carica altri": richiede la pagina successiva e la accoda alla lista
+  const loadMore = async () => {
+    const nextPage = page + 1;
     setLoading(true);
-    setErrorMsg(null);
+
     try {
-      // Vogliamo caricare i progetti insieme alle relative candidature (tabella project_applications)
+      const from = nextPage * PAGE_SIZE;
+      const to = (nextPage + 1) * PAGE_SIZE - 1;
+
       let query = supabase
         .from('projects')
         .select('*, project_applications(*)')
-        .eq('category', category.toLowerCase())
         .order('created_at', { ascending: false })
-        .range(pageToLoad * PAGE_SIZE, (pageToLoad + 1) * PAGE_SIZE);
+        .range(from, to);
 
-      if (difficulty !== 'Tutte') {
-        query = query.eq('difficulty', difficulty.toUpperCase());
+      if (category && category !== 'Tutte') {
+        query = query.eq('category', category);
+      }
+
+      if (difficulty && difficulty !== 'Tutte') {
+        query = query.eq('difficulty', difficulty);
       }
 
       const { data, error } = await query;
 
       if (error) {
-        console.error('Errore Supabase fetchProjects:', error);
         setErrorMsg(error.message);
       } else {
+        // Qui ACCODIAMO i nuovi risultati della pagina successiva
         setProjects((prev) => [...prev, ...(data || [])]);
-        setHasMore((data || []).length > 0);
+        setPage(nextPage);
+        setHasMore((data || []).length === PAGE_SIZE);
       }
     } catch (err) {
-      console.error('Eccezione in fetchProjects:', err);
-      setErrorMsg('Errore imprevisto nel caricamento dei dati.');
+      setErrorMsg('Errore durante il caricamento delle pagine successive.');
     } finally {
       setLoading(false);
     }
-  }
-
-  // Bottone "Carica altri": richiede la pagina successiva e la accoda alla lista
-  const loadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchProjects(nextPage);
   };
 
   return { projects, setProjects, loading, errorMsg, hasMore, loadMore };
