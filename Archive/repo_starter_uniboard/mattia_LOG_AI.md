@@ -1,0 +1,7 @@
+| # | Chi | Strumento | Cosa avete chiesto (in breve) | Cosa avete accettato / scartato / corretto, e perché |
+| --- | --- | --- | --- | --- |
+| 1 | Team | Gemini | Elenco delle priorità per il progetto e come dividere le task in due gruppi. | Accettato la divisione proposta per gruppi (Backend/Dati vs UI/Filtri) per ottimizzare il lavoro e ridurre i conflitti. |
+| 2 | Team | Gemini | Come identificare e risolvere l'errore UB-12 (cancellazione dell'intero team) leggendo lo schema SQL. | Accettato di aggiungere il filtro user_identifier alla query di delete, riutilizzando il currentUser già esistente nel progetto. |
+| 3 | Team | Gemini | Dove trovare il file col bug UB-08 e come implementare la correzione completa nel codice del form. | Accettato l'inserimento del controllo ternario per passare null invece di stringa vuota alla data, per evitare l'errore SQL. |
+| 4 | Team | Gemini | Spiegazione del problema della "schermata bianca", del metodo .select() e dell'operatore ... (tre puntini). | Accettato di aggiungere project_applications: [] ai nuovi dati per evitare che la UI crashi cercando un array inesistente. |
+| 5 | Team | Gemini | Spiegazione di un conflitto di merge su GitHub e i comandi VS Code per mergiare un file già esistente. | Accettati i comandi da terminale per fare il checkout di un singolo file dal main al branch attuale per risolvere il blocco. |
