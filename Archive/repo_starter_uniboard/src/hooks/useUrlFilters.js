@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * Legge i filtri correnti dall'URL del browser.
@@ -15,68 +15,52 @@ function getFiltersFromUrl() {
 
 export function useUrlFilters() {
   const [filters, setFilters] = useState(getFiltersFromUrl);
+  const filtersRef = useRef(filters);
 
   // Sincronizza lo stato se l'utente naviga con i tasti Indietro/Avanti del browser (UB-06)
   useEffect(() => {
     const handlePopState = () => {
-      setFilters(getFiltersFromUrl());
+      const fromUrl = getFiltersFromUrl();
+      filtersRef.current = fromUrl;
+      setFilters(fromUrl);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const updateFilters = useCallback((newPartialFilters) => {
-    setFilters((prev) => {
-      const updated = { ...prev, ...newPartialFilters };
+  const updateFilters = useCallback((partial) => {
+    const updated = { ...filtersRef.current, ...partial };
+    filtersRef.current = updated;
+    setFilters(updated);
 
-      // 1. PARTIAMO DAI PARAMETRI ATTUALI PER CONSERVARE ?user=... (UB-07)
-      const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(window.location.search); // conserva ?user=
 
-      // 2. Aggiorniamo o rimuoviamo solo i parametri dei filtri
-      if (updated.category && updated.category !== 'Tutte') {
-        params.set('category', updated.category);
+    const setOrDelete = (key, value, defaultValue) => {
+      if (value && value.trim() !== '' && value !== defaultValue) {
+        params.set(key, value);
       } else {
-        params.delete('category');
+        params.delete(key);
       }
+    };
 
-      if (updated.difficulty && updated.difficulty !== 'Tutte') {
-        params.set('difficulty', updated.difficulty);
-      } else {
-        params.delete('difficulty');
-      }
+    setOrDelete('category', updated.category, 'Tutte');
+    setOrDelete('difficulty', updated.difficulty, 'Tutte');
+    setOrDelete('q', updated.q, '');
+    setOrDelete('sort', updated.sort, 'newest');
 
-      if (updated.q && updated.q.trim() !== '') {
-        params.set('q', updated.q);
-      } else {
-        params.delete('q');
-      }
+    const queryString = params.toString();
+    const newUrl = queryString
+      ? `${window.location.pathname}?${queryString}`
+      : window.location.pathname;
 
-      if (updated.sort && updated.sort !== 'newest') {
-        params.set('sort', updated.sort);
-      } else {
-        params.delete('sort');
-      }
+    const current = window.location.pathname + window.location.search;
+    if (newUrl === current) return; // Evita di aggiungere voci duplicate se l'URL non cambia
 
-      // 3. Ricostruiamo l'URL mantenendo inalterato il parametro user
-      const queryString = params.toString();
-      const newUrl = queryString
-        ? `${window.location.pathname}?${queryString}`
-        : window.location.pathname;
-
-      // 4. Se si sta digitando nella barra di ricerca ('q'), usiamo replaceState
-      // per evitare di riempire la cronologia ad ogni singola lettera (UB-06)
-      const isOnlyQueryChange = 'q' in newPartialFilters && Object.keys(newPartialFilters).length === 1;
-
-      if (isOnlyQueryChange) {
-        window.history.replaceState(null, '', newUrl);
-      } else {
-        window.history.pushState(null, '', newUrl);
-      }
-
-      return updated;
-    });
+    // Se si sta digitando nella barra di ricerca ('q'), usiamo replaceState
+    // per evitare di riempire la cronologia ad ogni singola lettera (UB-06)
+    const onlyQuery = Object.keys(partial).length === 1 && 'q' in partial;
+    window.history[onlyQuery ? 'replaceState' : 'pushState'](null, '', newUrl);
   }, []);
 
   return [filters, updateFilters];
 }
-
