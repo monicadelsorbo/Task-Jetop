@@ -57,11 +57,11 @@ export default function ProjectModal({ project, currentUserId, onClose, onApplic
   // Ritiro della propria candidatura
   const handleWithdraw = async (application) => {
     if (!window.confirm('Vuoi davvero ritirare la tua candidatura?')) return;
-
-  const { error } = await supabase
-    .from('project_applications')
-    .delete()
-    .eq('id', application.id);
+// ub 12 
+    const { error } = await supabase
+  .from('project_applications')
+  .delete()
+  .eq('id', application.id);
 
     if (error) {
       showToast('Errore durante il ritiro: ' + error.message, 'error');
