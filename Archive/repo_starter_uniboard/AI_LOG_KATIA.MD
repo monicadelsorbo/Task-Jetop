@@ -6,7 +6,7 @@ Durante il debrief potremo chiedere a chiunque di spiegare una qualsiasi riga co
 
 | # | Chi | Strumento | Cosa avete chiesto (in breve) | Cosa avete accettato / scartato / corretto, e perché |
 | --- | --- | --- | --- | --- |
-| 1 | Monica | Gemini     |  Ho chiesto di aiutarmi ad analizzare il codice dei file e per i comandi git.          |                               |                                                      |
-| 2 |     |           |                               |                                                      |
+| 1 | Katia | Gemini/Cloud   |  Come preservare il parametro ?user= nell'URL durante l'aggiornamento dei filtri (Task 07).codice         |    Accettato: lettura e ricostruzione dei parametri con URLSearchParams per non perdere i dati utente. aggiunta della funzione function getFiltersFromUrl()                        |                                                      |
+| 2 |  Katia    |    gemini/ colud          |          Come correggere la ricerca testuale, i tag e l'ordinamento in projectUtils.js (Task 03).                     |   Accettato: aggiunta ricerca su descrizione/tag e ordinamento immutabile per posti liberi.                                                   |
 | 3 |     |           |                               |                                                      |
 | 4 |     |           |                               |                                                      |
