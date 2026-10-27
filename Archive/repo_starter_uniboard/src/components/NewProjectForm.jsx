@@ -34,14 +34,16 @@ export default function NewProjectForm({ categories, difficulties, onProjectCrea
       tech_stack: techArray,
       author: author.trim(),
       spots_total: Number(spotsTotal),
-      application_deadline: deadline
+      //se si metteva un dato null dava errore abbiamo aggiornato in modo che accettasse il null
+      application_deadline: deadline === "" ? null : deadline
     };
 
     // 🐛 UB-08:
     // 1. Cosa restituisce `data` in Supabase v2 se non si chiama `.select()` dopo `.insert()`?
     // 2. Quando passiamo il nuovo progetto a `onProjectCreated`, avrà la proprietà `project_applications: []`
     //    che `ProjectCard.jsx` si aspetta di leggere?
-    const { data, error } = await supabase.from('projects').insert([payload]);
+    //va fori dalla banda quindi con il select aggiorna il database con i dati
+    const { data, error } = await supabase.from('projects').insert([payload]).select();
 
     setSubmitting(false);
 
@@ -52,9 +54,26 @@ export default function NewProjectForm({ categories, difficulties, onProjectCrea
 
     showToast('Progetto pubblicato!', 'success');
 
+    // FIX: Svuota tutti i campi e chiudi
+    setTitle('');
+    setCategory(categories[0] || 'Web Dev');
+    setDifficulty(difficulties[1]  ||'Intermedio');
+    setDescription('');
+    setTechInput('');
+    setAuthor('');
+    setSpotsTotal(3);
+    setDeadline('');
+    setIsOpen(false);
+
     onProjectCreated(data ? data[0] : null);
   };
-
+  if (data && data.length > 0) {
+      const nuovoProgetto = {
+        ...data[0],
+        project_applications: [] // FIX: previene errori in ProjectCard
+      };
+      onProjectCreated(nuovoProgetto);
+  }
   if (!isOpen) {
     return (
       <div style={{ marginBottom: '20px' }}>
